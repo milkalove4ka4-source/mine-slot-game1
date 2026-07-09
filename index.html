@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mine Slot Game</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1a1a1a;
+            color: #fff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .game-container {
+            background: #2c2c2c;
+            border: 4px solid #4a4a4a;
+            border-radius: 10px;
+            padding: 20px;
+            width: 100%;
+            max-width: 500px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.7);
+            text-align: center;
+        }
+        h1 {
+            font-size: 24px;
+            margin-bottom: 20px;
+            color: #55ff55;
+            text-shadow: 2px 2px #005500;
+            letter-spacing: 2px;
+        }
+        .stats-bar {
+            display: flex;
+            justify-content: space-between;
+            background: #1e1e1e;
+            padding: 10px 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            border: 2px solid #3c3c3c;
+        }
+        .stat-box {
+            font-size: 16px;
+        }
+        .stat-value {
+            font-weight: bold;
+            color: #ffff55;
+        }
+        .slot-machine {
+            background: #141414;
+            border: 4px solid #333;
+            border-radius: 8px;
+            padding: 10px;
+            margin-bottom: 20px;
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 5px;
+            overflow: hidden;
+        }
+        .slot-cell {
+            aspect-ratio: 1;
+            background: #3a3a3a;
+            border: 2px solid #222;
+            border-radius: 4px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 24px;
+            font-weight: bold;
+            transition: transform 0.1s ease-in-out, background-color 0.2s;
+            user-select: none;
+        }
+        .slot-cell.spinning {
+            animation: spinAnim 0.1s linear infinite;
+        }
+        .slot-cell.win {
+            background: #55ff55;
+            border-color: #fff;
+            transform: scale(1.05);
+        }
+        @keyframes spinAnim {
+            0% { transform: translateY(-5px); }
+            50% { transform: translateY(5px); }
+            100% { transform: translateY(-5px); }
+        }
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .bet-control {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            background: #1e1e1e;
+            padding: 10px;
+            border-radius: 5px;
+            border: 2px solid #3c3c3c;
+        }
+        .btn-bet {
+            background: #4a4a4a;
+            color: white;
+            border: none;
+            padding: 5px 15px;
+            font-size: 18px;
+            cursor: pointer;
+            border-radius: 3px;
+            font-weight: bold;
+        }
+        .btn-bet:hover {
+            background: #5a5a5a;
+        }
+        #spin-btn {
+            background: #00aa00;
+            color: white;
+            border: none;
+            padding: 15px;
+            font-size: 20px;
+            font-weight: bold;
+            cursor: pointer;
+            border-radius: 5px;
+            box-shadow: 0 4px #005500;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: all 0.1s;
+        }
+        #spin-btn:hover {
+            background: #00cc00;
+        }
+        #spin-btn:active {
+            box-shadow: 0 0px #005500;
+            transform: translateY(4px);
+        }
+        #spin-btn:disabled {
+            background: #555;
+            box-shadow: 0 4px #222;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .message {
+            margin-top: 10px;
+            height: 24px;
+            font-weight: bold;
+            color: #ff5555;
+        }
+        .message.win-msg {
+            color: #55ff55;
+        }
+    </style>
+</head>
+<body>
+
+<div class="game-container">
+    <h1>MINE SLOT</h1>
+    
+    <div class="stats-bar">
+        <div class="stat-box">Баланс: <span id="balance-val" class="stat-value">$1,000,000</span></div>
+        <div class="stat-box">Ставка: <span id="bet-val" class="stat-value">200</span></div>
+    </div>
+
+    <div class="slot-machine" id="grid">
+        </div>
+
+    <div class="controls">
+        <div class="bet-control">
+            <button class="btn-bet" onclick="changeBet(-100)">-</button>
+            <span>Изменить ставку</span>
+            <button class="btn-bet" onclick="changeBet(100)">+</button>
+        </div>
+        <button id="spin-btn" onclick="spin()">Вращать</button>
+    </div>
+
+    <div class="message" id="msg-box"></div>
+</div>
+
+<script>
+    // Массив блоков, их редкость (weight) и коэффициент выплаты (payout)
+    const BLOCKS = {
+        '🟫': { name: 'Земля', weight: 40, payout: 1 },
+        '⬜': { name: 'Камень', weight: 30, payout: 2 },
+        '🟥': { name: 'Редстоун', weight: 15, payout: 5 },
+        '🟨': { name: 'Золото', weight: 10, payout: 10 },
+        '💎': { name: 'Алмаз', weight: 5, payout: 50 }
+    };
+
+    const ROWS = 6;
+    const COLS = 5;
+    let balance = 1000000;
+    let currentBet = 200;
+    let isSpinning = false;
+
+    const gridElement = document.getElementById('grid');
+    const balanceElement = document.getElementById('balance-val');
+    const betElement = document.getElementById('bet-val');
+    const spinButton = document.getElementById('spin-btn');
+    const msgBox = document.getElementById('msg-box');
+
+    let blockPool = [];
+    for (let key in BLOCKS) {
+        for (let i = 0; i < BLOCKS[key].weight; i++) {
+            blockPool.push(key);
+        }
+    }
+
+    function initGrid() {
+        gridElement.innerHTML = '';
+        for (let i = 0; i < ROWS * COLS; i++) {
+            const cell = document.createElement('div');
+            cell.className = 'slot-cell';
+            cell.innerText = getRandomBlock();
+            gridElement.appendChild(cell);
+        }
+    }
+
+    function getRandomBlock() {
+        const randomIndex = Math.floor(Math.random() * blockPool.length);
+        return blockPool[randomIndex];
+    }
+
+    function changeBet(amount) {
+        if (isSpinning) return;
+        let newBet = currentBet + amount;
+        if (newBet >= 100 && newBet <= balance) {
+            currentBet = newBet;
+            betElement.innerText = currentBet.toLocaleString();
+        }
+    }
+
+    function spin() {
+        if (isSpinning || balance < currentBet) {
+            if (balance < currentBet) msgBox.innerText = 'Недостаточно средств!';
+            return;
+        }
+
+        isSpinning = true;
+        spinButton.disabled = true;
+        msgBox.innerText = '';
+        msgBox.className = 'message';
+
+        balance -= currentBet;
+        balanceElement.innerText = '$' + balance.toLocaleString();
+
+        const cells = document.querySelectorAll('.slot-cell');
+        cells.forEach(cell => cell.classList.add('spinning'));
+
+        setTimeout(() => {
+            let matrix = [];
+            for (let r = 0; r < ROWS; r++) {
+                matrix[r] = [];
+                for (let c = 0; c < COLS; c++) {
+                    const block = getRandomBlock();
+                    matrix[r][c] = block;
+                    
+                    const cellIndex = r * COLS + c;
+                    cells[cellIndex].classList.remove('spinning');
+                    cells[cellIndex].classList.remove('win');
+                    cells[cellIndex].innerText = block;
+                }
+            }
+
+            checkWins(matrix, cells);
+            isSpinning = false;
+            spinButton.disabled = false;
+        }, 1000);
+    }
+
+    function checkWins(matrix, cells) {
+        let winAmount = 0;
+        let winningCells = new Set();
+
+        // Проверка совпадений по горизонтали (3 или более в ряд)
+        for (let r = 0; r < ROWS; r++) {
+            let rowBlocks = matrix[r];
+            let matchCount = 1;
+            let currentBlock = rowBlocks[0];
+            let startIdx = 0;
+
+            for (let c = 1; c < COLS; c++) {
+                if (rowBlocks[c] === currentBlock) {
+                    matchCount++;
+                } else {
+                    if (matchCount >= 3) {
+                        for (let i = startIdx; i < c; i++) winningCells.add(r * COLS + i);
+                        winAmount += currentBet * BLOCKS[currentBlock].payout * (matchCount - 2);
+                    }
+                    matchCount = 1;
+                    currentBlock = rowBlocks[c];
+                    startIdx = c;
+                }
+            }
+            if (matchCount >= 3) {
+                for (let i = startIdx; i < COLS; i++) winningCells.add(r * COLS + i);
+                winAmount += currentBet * BLOCKS[currentBlock].payout * (matchCount - 2);
+            }
+        }
+
+        if (winAmount > 0) {
+            balance += winAmount;
+            balanceElement.innerText = '$' + balance.toLocaleString();
+            msgBox.innerText = `Выигрыш: +$${winAmount.toLocaleString()}!`;
+            msgBox.className = 'message win-msg';
+            
+            winningCells.forEach(index => {
+                cells[index].classList.add('win');
+            });
+        }
+    }
+
+    initGrid();
+</script>
+</body>
+</html>
